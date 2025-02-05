@@ -245,8 +245,232 @@
 
     <div class="toast" id="toast"></div>
 
-    <!-- Previous JavaScript code remains the same, just add this toast function: -->
+    
     <script>
+        let map;
+        let markers = [];
+        let geocoder;
+
+        function getAgeIcon(age) {
+            age = parseInt(age);
+            if (age >= 13 && age <= 28) return 'Z';
+            if (age >= 29 && age <= 44) return 'Y';
+            if (age >= 45 && age <= 60) return 'X';
+            if (age >= 61 && age <= 70) return 'B';
+            return 'U';
+        }
+
+        function getSpendingColor(spending) {
+            spending = parseInt(spending);
+            if (spending >= 0 && spending <= 799) return '#808080';        // gray
+            if (spending >= 800 && spending <= 2999) return '#FF0000';     // red
+            if (spending >= 3000 && spending <= 9999) return '#00FF00';    // green
+            if (spending >= 10000 && spending <= 39999) return '#0000FF';  // blue
+            if (spending >= 40000 && spending <= 999999) return '#FFD700'; // golden yellow
+            return '#808080'; // default gray
+        }
+
+        function createCustomMarker(text, color) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 32;
+            canvas.height = 32;
+            const context = canvas.getContext('2d');
+
+            // Draw the marker
+            context.font = 'bold 24px Arial';
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            
+            // Draw colored circle background
+            context.beginPath();
+            context.arc(16, 16, 15, 0, 2 * Math.PI);
+            context.fillStyle = color;
+            context.fill();
+            context.strokeStyle = '#000000';
+            context.lineWidth = 2;
+            context.stroke();
+
+            // Draw text
+            context.fillStyle = '#FFFFFF';
+            context.fillText(text, 16, 16);
+
+            return canvas.toDataURL();
+        }
+
+        function initMap() {
+            geocoder = new google.maps.Geocoder();
+            map = new google.maps.Map(document.getElementById('map'), {
+                zoom: 6,
+                center: { lat: 13.7563, lng: 100.5018 },
+            });
+        }
+
+        function parseInput(text) {
+            return text.split('\n')
+                .map(line => line.trim())
+                .filter(line => line.length > 0)
+                .map(line => {
+                    const [name, age, address, spending] = line.split('|').map(part => part.trim());
+                    
+                    if (!name || !age || !address || !spending) {
+                        throw new Error(`รูปแบบไม่ถูกต้อง: ${line}`);
+                    }
+
+                    return { name, age, address, spending };
+                });
+        }
+
+        async function addMarkers() {
+            const input = document.getElementById('addressInput').value;
+            
+            try {
+                const customers = parseInput(input);
+                const bounds = new google.maps.LatLngBounds();
+                let processed = 0;
+                let errors = [];
+
+                for (const customer of customers) {
+                    try {
+                        const searchAddress = customer.address + 
+                            (customer.address.toLowerCase().includes('ประเทศไทย') || 
+                             customer.address.toLowerCase().includes('thailand') ? 
+                             '' : ', ประเทศไทย');
+
+                        const result = await new Promise((resolve, reject) => {
+                            geocoder.geocode(
+                                { 
+                                    address: searchAddress,
+                                    region: 'th'
+                                }, 
+                                (results, status) => {
+                                    if (status === 'OK') resolve(results[0]);
+                                    else reject(new Error(status));
+                                }
+                            );
+                        });
+
+                        const position = result.geometry.location;
+                        const icon = getAgeIcon(customer.age);
+                        const color = getSpendingColor(customer.spending);
+                        
+                        const marker = new google.maps.Marker({
+                            position: position,
+                            map: map,
+                            title: customer.name,
+                            icon: {
+                                url: createCustomMarker(icon, color),
+                                scaledSize: new google.maps.Size(32, 32),
+                                anchor: new google.maps.Point(16, 16)
+                            }
+                        });
+
+                        const infoWindow = new google.maps.InfoWindow({
+                            content: `
+                                <div style="font-family: sans-serif;">
+                                    <b>ชื่อ:</b> ${customer.name}<br>
+                                    <b>อายุ:</b> ${customer.age}<br>
+                                    <b>ที่อยู่:</b> ${customer.address}<br>
+                                    <b>ยอดใช้จ่าย:</b> ${customer.spending} บาท
+                                </div>`
+                        });
+
+                        marker.addListener('click', () => {
+                            infoWindow.open(map, marker);
+                        });
+
+                        markers.push({
+                            marker: marker,
+                            data: {
+                                name: customer.name,
+                                age: customer.age,
+                                address: customer.address,
+                                spending: customer.spending,
+                                lat: position.lat(),
+                                lng: position.lng()
+                            }
+                        });
+
+                        bounds.extend(position);
+                        processed++;
+                        await new Promise(resolve => setTimeout(resolve, 200));
+                    } catch (error) {
+                        errors.push(`ไม่พบที่อยู่: ${customer.address}`);
+                    }
+                }
+
+                if (markers.length > 0) {
+                    map.fitBounds(bounds);
+                }
+
+                if (errors.length > 0) {
+                    showToast(`เพิ่มหมุดสำเร็จ ${processed} จาก ${customers.length} รายการ\n\nข้อผิดพลาด:\n${errors.join('\n')}`);
+                } else {
+                    showToast(`เพิ่มหมุดสำเร็จทั้งหมด ${processed} รายการ!`);
+                }
+            } catch (error) {
+                showToast(error.message);
+            }
+        }
+
+        function clearMarkers() {
+            markers.forEach(m => m.marker.setMap(null));
+            markers = [];
+        }
+
+        function saveMarkers() {
+            localStorage.setItem('mapMarkers', JSON.stringify(markers.map(m => m.data)));
+            showToast('บันทึกข้อมูลเรียบร้อย!');
+        }
+
+        function loadMarkers() {
+            const saved = localStorage.getItem('mapMarkers');
+            if (saved) {
+                clearMarkers();
+                const bounds = new google.maps.LatLngBounds();
+
+                JSON.parse(saved).forEach(data => {
+                    const position = new google.maps.LatLng(data.lat, data.lng);
+                    const icon = getAgeIcon(data.age);
+                    const color = getSpendingColor(data.spending);
+
+                    const marker = new google.maps.Marker({
+                        position: position,
+                        map: map,
+                        title: data.name,
+                        icon: {
+                            url: createCustomMarker(icon, color),
+                            scaledSize: new google.maps.Size(32, 32),
+                            anchor: new google.maps.Point(16, 16)
+                        }
+                    });
+
+                    const infoWindow = new google.maps.InfoWindow({
+                        content: `
+                            <div style="font-family: sans-serif;">
+                                <b>ชื่อ:</b> ${data.name}<br>
+                                <b>อายุ:</b> ${data.age}<br>
+                                <b>ที่อยู่:</b> ${data.address}<br>
+                                <b>ยอดใช้จ่าย:</b> ${data.spending} บาท
+                            </div>`
+                    });
+
+                    marker.addListener('click', () => {
+                        infoWindow.open(map, marker);
+                    });
+
+                    markers.push({ marker, data });
+                    bounds.extend(position);
+                });
+
+                if (markers.length > 0) {
+                    map.fitBounds(bounds);
+                }
+                showToast('โหลดข้อมูลเรียบร้อย!');
+            } else {
+                showToast('ไม่พบข้อมูลที่บันทึกไว้');
+            }
+        }
+
         function showToast(message, duration = 3000) {
             const toast = document.getElementById('toast');
             toast.textContent = message;
@@ -257,12 +481,8 @@
             }, duration);
         }
 
-        // Replace alert() calls with showToast()
-        // For example:
-        // alert('บันทึกข้อมูลเรียบร้อย!') becomes showToast('บันทึกข้อมูลเรียบร้อย!')
     </script>
 
-    [Previous JavaScript code goes here, unchanged]
 
     <script async src="https://maps.googleapis.com/maps/api/js?key=AIzaSyD8BGrBTMnpGeBAJaPc5UZJRmhi_Yp9vYk&callback=initMap"></script>
 </body>
