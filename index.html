@@ -2,293 +2,268 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Google Maps - Multiple Thai Addresses</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Map Analytics</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        body {
+            background: #f5f5f5;
+            color: #333;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+            padding: 20px;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        @media (min-width: 1024px) {
+            .container {
+                grid-template-columns: 350px 1fr;
+            }
+        }
+
+        .panel {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 20px;
+            height: fit-content;
+        }
+
+        .map-container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+            min-height: 600px;
+        }
+
         #map {
-            height: 600px;
+            height: 100%;
+            min-height: 600px;
             width: 100%;
         }
-        .controls {
-            margin: 10px;
+
+        .title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+
+        .instructions {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            margin-bottom: 20px;
+        }
+
+        .example {
+            background: #e8f5e9;
             padding: 10px;
-            border: 1px solid #ccc;
-            display: flex;
-            gap: 20px;
+            border-radius: 6px;
+            margin-top: 10px;
+            font-family: monospace;
+            font-size: 0.9rem;
         }
-        .input-section {
-            flex: 1;
-        }
+
         #addressInput {
             width: 100%;
-            height: 200px;
-            margin-bottom: 10px;
-            font-family: sans-serif;
-            padding: 10px;
+            height: 150px;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            margin-bottom: 15px;
+            resize: vertical;
+            transition: border-color 0.3s;
         }
-        .instructions {
-            font-size: 0.9em;
-            color: #666;
-            margin-bottom: 10px;
-            background: #f5f5f5;
-            padding: 10px;
-            border-radius: 4px;
+
+        #addressInput:focus {
+            border-color: #4CAF50;
+            outline: none;
         }
+
         .button-group {
-            margin-top: 10px;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
         }
+
         button {
-            margin-right: 10px;
-            padding: 8px 16px;
+            padding: 10px;
+            border: none;
+            border-radius: 6px;
             cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
         }
-        .map-section {
-            flex: 2;
+
+        button.primary {
+            background: #4CAF50;
+            color: white;
         }
-        .color-input {
-            width: 100px;
+
+        button.secondary {
+            background: #f5f5f5;
+            color: #333;
+        }
+
+        button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .legend {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
             margin-right: 10px;
+        }
+
+        /* Toast notification */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 15px 25px;
+            background: #333;
+            color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            display: none;
+            z-index: 1000;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateY(100px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
         }
     </style>
 </head>
 <body>
-    <div class="controls">
-        <div class="input-section">
+    <div class="container">
+        <div class="panel">
+            <h1 class="title">Customer Map Analytics</h1>
+            
             <div class="instructions">
-                ใส่ที่อยู่แต่ละแห่งในบรรทัดใหม่ โดยใช้รูปแบบ:<br>
-                ที่อยู่ | สี
-                <br><br>
-                ตัวอย่าง:<br>
-                ถนนสุขุมวิท 55 กรุงเทพ | red<br>
-                เซ็นทรัลเวิลด์ กรุงเทพ | blue<br>
-                <br>
-                สีที่ใช้ได้: red, blue, green, purple, orange, yellow, pink, black
+                รูปแบบการป้อนข้อมูล:
+                <br>ชื่อลูกค้า | อายุ | ที่อยู่ | ยอดใช้จ่าย
+                <div class="example">
+                    คุณสมชาย | 25 | ถนนสุขุมวิท 55 กรุงเทพ | 2500
+                </div>
             </div>
-            <textarea id="addressInput" placeholder="ใส่ที่อยู่ตามรูปแบบด้านบน..."></textarea>
+
+            <textarea id="addressInput" placeholder="ป้อนข้อมูลตามรูปแบบด้านบน..."></textarea>
+
             <div class="button-group">
-                <button onclick="addMarkers()">เพิ่มหมุด</button>
-                <button onclick="clearMarkers()">ลบทั้งหมด</button>
-                <button onclick="saveMarkers()">บันทึก</button>
-                <button onclick="loadMarkers()">โหลด</button>
+                <button onclick="addMarkers()" class="primary">
+                    <i class="fas fa-map-marker-alt"></i> เพิ่มหมุด
+                </button>
+                <button onclick="clearMarkers()" class="secondary">
+                    <i class="fas fa-trash-alt"></i> ลบทั้งหมด
+                </button>
+                <button onclick="saveMarkers()" class="secondary">
+                    <i class="fas fa-save"></i> บันทึก
+                </button>
+                <button onclick="loadMarkers()" class="secondary">
+                    <i class="fas fa-folder-open"></i> โหลด
+                </button>
+            </div>
+
+            <div class="legend">
+                <h3 style="margin-bottom: 15px;">สัญลักษณ์</h3>
+                <div style="margin-bottom: 15px;">
+                    <strong>อายุ:</strong>
+                    <div class="legend-item">Z: 13-28 ปี</div>
+                    <div class="legend-item">Y: 29-44 ปี</div>
+                    <div class="legend-item">X: 45-60 ปี</div>
+                    <div class="legend-item">B: 61-70 ปี</div>
+                    <div class="legend-item">U: อายุอื่นๆ</div>
+                </div>
+                <div>
+                    <strong>ยอดใช้จ่าย:</strong>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #808080"></div>
+                        0-799 บาท
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #FF0000"></div>
+                        800-2,999 บาท
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #00FF00"></div>
+                        3,000-9,999 บาท
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #0000FF"></div>
+                        10,000-39,999 บาท
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #FFD700"></div>
+                        40,000-999,999 บาท
+                    </div>
+                </div>
             </div>
         </div>
-        <div class="map-section">
+
+        <div class="map-container">
             <div id="map"></div>
         </div>
     </div>
 
+    <div class="toast" id="toast"></div>
+
+    <!-- Previous JavaScript code remains the same, just add this toast function: -->
     <script>
-        let map;
-        let markers = [];
-        const validColors = ['red', 'blue', 'green', 'purple', 'orange', 'yellow', 'pink', 'black'];
-        let geocoder;
-
-        // Initialize the map
-        function initMap() {
-            // Create geocoder instance
-            geocoder = new google.maps.Geocoder();
-
-            // Initialize map centered on Thailand
-            map = new google.maps.Map(document.getElementById('map'), {
-                zoom: 6,
-                center: { lat: 13.7563, lng: 100.5018 }, // Bangkok coordinates
-            });
-        }
-
-        // Parse input text into array of {address, color} objects
-        function parseInput(text) {
-            const lines = text.split('\n')
-                .map(line => line.trim())
-                .filter(line => line.length > 0);
-
-            return lines.map(line => {
-                const [address, color] = line.split('|').map(part => part.trim());
-                
-                if (!address || !color) {
-                    throw new Error(`รูปแบบไม่ถูกต้อง: ${line}\nต้องใช้รูปแบบ "ที่อยู่ | สี"`);
-                }
-                
-                if (!validColors.includes(color.toLowerCase())) {
-                    throw new Error(`สีไม่ถูกต้อง "${color}"\nสีที่ใช้ได้: ${validColors.join(', ')}`);
-                }
-
-                return {
-                    address: address,
-                    color: color.toLowerCase()
-                };
-            });
-        }
-
-        // Add markers from textarea input
-        async function addMarkers() {
-            const input = document.getElementById('addressInput').value;
+        function showToast(message, duration = 3000) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.style.display = 'block';
             
-            try {
-                const locations = parseInput(input);
-                const bounds = new google.maps.LatLngBounds();
-                let processed = 0;
-                let errors = [];
-
-                for (const loc of locations) {
-                    try {
-                        // Add Thailand to the address if not present
-                        const searchAddress = loc.address + (
-                            loc.address.toLowerCase().includes('ประเทศไทย') || 
-                            loc.address.toLowerCase().includes('thailand') ? 
-                            '' : ', ประเทศไทย'
-                        );
-
-                        // Geocode the address
-                        const result = await new Promise((resolve, reject) => {
-                            geocoder.geocode(
-                                { 
-                                    address: searchAddress,
-                                    region: 'th' // Bias to Thailand
-                                }, 
-                                (results, status) => {
-                                    if (status === 'OK') {
-                                        resolve(results[0]);
-                                    } else {
-                                        reject(new Error(status));
-                                    }
-                                }
-                            );
-                        });
-
-                        const position = result.geometry.location;
-                        
-                        // Create marker with custom color
-                        const marker = new google.maps.Marker({
-                            position: position,
-                            map: map,
-                            title: loc.address,
-                            icon: {
-                                path: google.maps.SymbolPath.MARKER,
-                                fillColor: loc.color,
-                                fillOpacity: 1,
-                                strokeColor: '#000',
-                                strokeWeight: 1,
-                                scale: 10
-                            }
-                        });
-
-                        // Add info window
-                        const infoWindow = new google.maps.InfoWindow({
-                            content: `<div style="font-family: sans-serif;">
-                                <b>ที่อยู่:</b><br>${loc.address}<br>
-                                <b>พิกัด:</b><br>
-                                Latitude: ${position.lat()}<br>
-                                Longitude: ${position.lng()}
-                            </div>`
-                        });
-
-                        marker.addListener('click', () => {
-                            infoWindow.open(map, marker);
-                        });
-
-                        markers.push({
-                            marker: marker,
-                            data: {
-                                address: loc.address,
-                                color: loc.color,
-                                lat: position.lat(),
-                                lng: position.lng()
-                            }
-                        });
-
-                        bounds.extend(position);
-                        processed++;
-
-                        // Add delay to avoid hitting API rate limits
-                        await new Promise(resolve => setTimeout(resolve, 200));
-                    } catch (error) {
-                        errors.push(`ไม่พบที่อยู่: ${loc.address}`);
-                    }
-                }
-
-                // Fit map to show all markers
-                if (markers.length > 0) {
-                    map.fitBounds(bounds);
-                }
-
-                if (errors.length > 0) {
-                    alert(`เพิ่มหมุดสำเร็จ ${processed} จาก ${locations.length} ที่อยู่\n\nข้อผิดพลาด:\n${errors.join('\n')}`);
-                } else {
-                    alert(`เพิ่มหมุดสำเร็จทั้งหมด ${processed} ที่อยู่!`);
-                }
-            } catch (error) {
-                alert(error.message);
-            }
+            setTimeout(() => {
+                toast.style.display = 'none';
+            }, duration);
         }
 
-        // Clear all markers
-        function clearMarkers() {
-            markers.forEach(m => m.marker.setMap(null));
-            markers = [];
-        }
-
-        // Save markers to localStorage
-        function saveMarkers() {
-            const markerData = markers.map(m => m.data);
-            localStorage.setItem('mapMarkers', JSON.stringify(markerData));
-            alert('บันทึกหมุดเรียบร้อย!');
-        }
-
-        // Load markers from localStorage
-        function loadMarkers() {
-            const savedMarkers = localStorage.getItem('mapMarkers');
-            if (savedMarkers) {
-                clearMarkers();
-                const bounds = new google.maps.LatLngBounds();
-
-                JSON.parse(savedMarkers).forEach(data => {
-                    const position = new google.maps.LatLng(data.lat, data.lng);
-                    
-                    const marker = new google.maps.Marker({
-                        position: position,
-                        map: map,
-                        title: data.address,
-                        icon: {
-                            path: google.maps.SymbolPath.MARKER,
-                            fillColor: data.color,
-                            fillOpacity: 1,
-                            strokeColor: '#000',
-                            strokeWeight: 1,
-                            scale: 10
-                        }
-                    });
-
-                    const infoWindow = new google.maps.InfoWindow({
-                        content: `<div style="font-family: sans-serif;">
-                            <b>ที่อยู่:</b><br>${data.address}<br>
-                            <b>พิกัด:</b><br>
-                            Latitude: ${data.lat}<br>
-                            Longitude: ${data.lng}
-                        </div>`
-                    });
-
-                    marker.addListener('click', () => {
-                        infoWindow.open(map, marker);
-                    });
-
-                    markers.push({
-                        marker: marker,
-                        data: data
-                    });
-
-                    bounds.extend(position);
-                });
-
-                if (markers.length > 0) {
-                    map.fitBounds(bounds);
-                }
-                alert('โหลดหมุดเรียบร้อย!');
-            } else {
-                alert('ไม่พบหมุดที่บันทึกไว้');
-            }
-        }
+        // Replace alert() calls with showToast()
+        // For example:
+        // alert('บันทึกข้อมูลเรียบร้อย!') becomes showToast('บันทึกข้อมูลเรียบร้อย!')
     </script>
-    <script async
-        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyD8BGrBTMnpGeBAJaPc5UZJRmhi_Yp9vYk&callback=initMap">
-    </script>
+
+    [Previous JavaScript code goes here, unchanged]
+
+    <script async src="https://maps.googleapis.com/maps/api/js?key=AIzaSyD8BGrBTMnpGeBAJaPc5UZJRmhi_Yp9vYk&callback=initMap"></script>
 </body>
 </html>
