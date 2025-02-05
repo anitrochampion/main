@@ -484,6 +484,32 @@
     </script>
 
 
-    <script async src="https://maps.googleapis.com/maps/api/js?key=AIzaSyD8BGrBTMnpGeBAJaPc5UZJRmhi_Yp9vYk&callback=initMap"></script>
+<script>
+        // Get API key from URL parameters
+        function getApiKey() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const key = urlParams.get('key');
+            if (!key) {
+                document.body.innerHTML = '<div style="padding: 20px; color: red;">API Key is required. Please add ?key=YOUR_API_KEY to the URL.</div>';
+                throw new Error('API Key is required');
+            }
+            return key;
+        }
+
+        // Load Google Maps API dynamically
+        function loadGoogleMapsApi() {
+            const script = document.createElement('script');
+            script.src = `https://maps.googleapis.com/maps/api/js?key=${getApiKey()}&callback=initMap`;
+            script.async = true;
+            script.defer = true;
+            script.onerror = () => {
+                document.body.innerHTML = '<div style="padding: 20px; color: red;">Error loading Google Maps. Please check your API key.</div>';
+            };
+            document.body.appendChild(script);
+        }
+
+        // Call after DOM is loaded
+        document.addEventListener('DOMContentLoaded', loadGoogleMapsApi);
+    </script>
 </body>
 </html>
