@@ -1,3 +1,332 @@
+<!DOCTYPE html>
 <html>
-<b>salkdfjlaksdjflkasdf</b>
+<head>
+    <title>My Custom Map</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+    <style>
+        .container {
+            display: flex;
+            padding: 20px;
+            gap: 20px;
+        }
+        .input-section {
+            flex: 1;
+        }
+        .preview-section {
+            flex: 1;
+            padding: 20px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        #map {
+            height: 500px;
+            width: 100%;
+            margin-top: 20px;
+        }
+        #locationInput {
+            width: 100%;
+            height: 300px;
+            margin-bottom: 10px;
+            font-family: monospace;
+            white-space: pre;
+            padding: 10px;
+        }
+        .instructions {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 10px;
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .preview-card {
+            background: white;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            border-left: 4px solid #ddd;
+        }
+        .preview-card pre {
+            margin: 0;
+            white-space: pre-wrap;
+        }
+        .color-preview {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+        .button-group {
+            margin: 10px 0;
+        }
+        button {
+            margin-right: 10px;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button.primary {
+            background: #4CAF50;
+            color: white;
+        }
+        button.secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+        .error {
+            color: #d32f2f;
+            margin-top: 5px;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="input-section">
+            <div class="instructions">
+                Enter addresses in the following format:
+                <br><br>
+                --- Start each address with three dashes ---<br>
+                [Your complete postal address here]<br>
+                COLOR: [color name]<br>
+                --- End each address with three dashes ---
+                <br><br>
+                Available colors: red, blue, green, purple, orange, yellow, pink, black
+            </div>
+            <textarea id="locationInput" placeholder="Enter addresses following the format shown above...">---
+123 Main Street
+Apartment 4B
+New York, NY 10001
+United States
+COLOR: red
+---</textarea>
+            <div class="button-group">
+                <button onclick="previewAddresses()" class="primary">Preview</button>
+                <button onclick="addMarkers()" class="primary" id="addBtn" disabled>Add to Map</button>
+                <button onclick="clearMarkers()" class="secondary">Clear Map</button>
+                <button onclick="saveMarkers()" class="secondary">Save</button>
+                <button onclick="loadMarkers()" class="secondary">Load</button>
+            </div>
+        </div>
+        <div class="preview-section" id="preview">
+            <h3>Address Preview</h3>
+            <div id="previewContent">
+                Preview your addresses here before adding them to the map.
+            </div>
+        </div>
+    </div>
+    <div id="map"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+    <script>
+        // Initialize the map
+        const map = L.map('map').setView([0, 0], 2);
+        
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        let markers = [];
+        let previewData = [];
+        const validColors = ['red', 'blue', 'green', 'purple', 'orange', 'yellow', 'pink', 'black'];
+
+        // Create custom colored icon
+        function createColoredIcon(color) {
+            return L.divIcon({
+                className: 'custom-pin',
+                html: `<svg width="25" height="41" viewBox="0 0 100 100">
+                    <path fill="${color}" d="M50 0C29.86 0 13.23 16.63 13.23 36.77c0 3.271.43 6.461 1.25 9.496C14.48 46.27 31.25 100 50 100c18.75 0 35.52-53.73 35.52-53.73a36.534 36.534 0 0 0 1.25-9.496C86.77 16.63 70.14 0 50 0z"/>
+                </svg>`,
+                iconSize: [25, 41],
+                iconAnchor: [12, 41],
+                popupAnchor: [1, -34]
+            });
+        }
+
+        // Parse input text into array of {address, color} objects
+        function parseInput(text) {
+            const addresses = [];
+            const blocks = text.split('---').map(block => block.trim()).filter(block => block);
+            
+            for (const block of blocks) {
+                const lines = block.split('\n').map(line => line.trim());
+                const colorLine = lines.find(line => line.toLowerCase().startsWith('color:'));
+                
+                if (!colorLine) {
+                    throw new Error(`Missing color specification in block:\n${block}`);
+                }
+                
+                const color = colorLine.split(':')[1].trim().toLowerCase();
+                if (!validColors.includes(color)) {
+                    throw new Error(`Invalid color "${color}". Valid colors are: ${validColors.join(', ')}`);
+                }
+                
+                const addressLines = lines.filter(line => !line.toLowerCase().startsWith('color:'));
+                const fullAddress = addressLines.join(', ');
+                
+                addresses.push({
+                    address: fullAddress,
+                    color: color,
+                    originalFormat: addressLines.join('\n')
+                });
+            }
+            
+            return addresses;
+        }
+
+        // Preview addresses
+        async function previewAddresses() {
+            const input = document.getElementById('locationInput').value;
+            const previewContent = document.getElementById('previewContent');
+            
+            try {
+                previewData = parseInput(input);
+                let previewHtml = '';
+                
+                for (const loc of previewData) {
+                    previewHtml += `
+                        <div class="preview-card" style="border-left-color: ${loc.color}">
+                            <div>
+                                <span class="color-preview" style="background-color: ${loc.color}"></span>
+                                <strong>Pin Color: ${loc.color}</strong>
+                            </div>
+                            <pre>${loc.originalFormat}</pre>
+                        </div>
+                    `;
+                }
+                
+                previewContent.innerHTML = previewHtml;
+                document.getElementById('addBtn').disabled = false;
+                
+            } catch (error) {
+                previewContent.innerHTML = `
+                    <div class="error">
+                        Error parsing addresses:<br>
+                        ${error.message}
+                    </div>
+                `;
+                document.getElementById('addBtn').disabled = true;
+            }
+        }
+
+        // Geocode address using Nominatim
+        async function geocodeAddress(address) {
+            const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`);
+            const data = await response.json();
+            if (data.length === 0) throw new Error('Address not found');
+            return {
+                lat: parseFloat(data[0].lat),
+                lng: parseFloat(data[0].lon),
+                displayName: data[0].display_name
+            };
+        }
+
+        // Add markers from preview data
+        async function addMarkers() {
+            if (previewData.length === 0) {
+                alert('Please preview addresses first');
+                return;
+            }
+            
+            const totalLocations = previewData.length;
+            let processed = 0;
+            let errors = [];
+            
+            for (const loc of previewData) {
+                try {
+                    const geoData = await geocodeAddress(loc.address);
+                    
+                    const marker = L.marker([geoData.lat, geoData.lng], {
+                        icon: createColoredIcon(loc.color)
+                    })
+                        .bindPopup(`<b>Address:</b><br>${loc.originalFormat.replace(/\n/g, '<br>')}`)
+                        .addTo(map);
+
+                    markers.push({
+                        marker: marker,
+                        data: {
+                            address: loc.originalFormat,
+                            lat: geoData.lat,
+                            lng: geoData.lng,
+                            color: loc.color
+                        }
+                    });
+                    
+                    processed++;
+                    
+                    // Update preview card with success status
+                    const previewCards = document.querySelectorAll('.preview-card');
+                    previewCards[processed - 1].style.backgroundColor = '#e8f5e9';
+                    
+                    // Add delay to avoid hitting API rate limits
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                } catch (error) {
+                    errors.push(`Could not find address:\n${loc.originalFormat}`);
+                    // Update preview card with error status
+                    const previewCards = document.querySelectorAll('.preview-card');
+                    previewCards[processed].style.backgroundColor = '#ffebee';
+                }
+            }
+
+            // Fit map to show all markers
+            if (markers.length > 0) {
+                const group = new L.featureGroup(markers.map(m => m.marker));
+                map.fitBounds(group.getBounds().pad(0.1));
+            }
+
+            if (errors.length > 0) {
+                alert(`Added ${processed} out of ${totalLocations} locations.\n\nErrors:\n${errors.join('\n\n')}`);
+            } else {
+                alert(`Successfully added all ${processed} locations!`);
+            }
+        }
+
+        // Clear all markers
+        function clearMarkers() {
+            markers.forEach(m => map.removeLayer(m.marker));
+            markers = [];
+        }
+
+        // Save markers to localStorage
+        function saveMarkers() {
+            const markerData = markers.map(m => m.data);
+            localStorage.setItem('mapMarkers', JSON.stringify(markerData));
+            alert('Markers saved!');
+        }
+
+        // Load markers from localStorage
+        function loadMarkers() {
+            const savedMarkers = localStorage.getItem('mapMarkers');
+            if (savedMarkers) {
+                clearMarkers();
+                JSON.parse(savedMarkers).forEach(data => {
+                    const marker = L.marker([data.lat, data.lng], {
+                        icon: createColoredIcon(data.color)
+                    })
+                        .bindPopup(`<b>Address:</b><br>${data.address.replace(/\n/g, '<br>')}`)
+                        .addTo(map);
+                    
+                    markers.push({
+                        marker: marker,
+                        data: data
+                    });
+                });
+                
+                if (markers.length > 0) {
+                    const group = new L.featureGroup(markers.map(m => m.marker));
+                    map.fitBounds(group.getBounds().pad(0.1));
+                }
+                alert('Markers loaded!');
+            } else {
+                alert('No saved markers found');
+            }
+        }
+    </script>
+</body>
 </html>
