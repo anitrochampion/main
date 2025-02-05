@@ -1,131 +1,91 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>My Custom Map</title>
+    <meta charset="UTF-8">
+    <title>แผนที่ของฉัน</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     <style>
-        .container {
+        #map {
+            height: 500px;
+            width: 100%;
+        }
+        .controls {
+            margin: 10px;
+            padding: 10px;
+            border: 1px solid #ccc;
             display: flex;
-            padding: 20px;
             gap: 20px;
         }
         .input-section {
             flex: 1;
         }
-        .preview-section {
-            flex: 1;
-            padding: 20px;
-            background: #f5f5f5;
-            border-radius: 8px;
-            max-height: 600px;
-            overflow-y: auto;
-        }
-        #map {
-            height: 500px;
-            width: 100%;
-            margin-top: 20px;
-        }
         #locationInput {
             width: 100%;
             height: 300px;
             margin-bottom: 10px;
-            font-family: monospace;
+            font-family: sans-serif;
             white-space: pre;
             padding: 10px;
         }
         .instructions {
             font-size: 0.9em;
-            color: #666;
             margin-bottom: 10px;
             background: #f5f5f5;
             padding: 10px;
             border-radius: 4px;
         }
-        .preview-card {
-            background: white;
-            padding: 15px;
-            margin-bottom: 10px;
-            border-radius: 4px;
-            border-left: 4px solid #ddd;
-        }
-        .preview-card pre {
-            margin: 0;
-            white-space: pre-wrap;
-        }
-        .color-preview {
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            display: inline-block;
-            margin-right: 10px;
-            vertical-align: middle;
+        .example {
+            background: #fff;
+            padding: 10px;
+            border: 1px solid #ddd;
+            margin-top: 10px;
+            font-family: sans-serif;
         }
         .button-group {
-            margin: 10px 0;
+            margin-top: 10px;
         }
         button {
             margin-right: 10px;
-            padding: 8px 16px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        button.primary {
-            background: #4CAF50;
-            color: white;
-        }
-        button.secondary {
-            background: #f0f0f0;
-            color: #333;
-        }
-        .error {
-            color: #d32f2f;
-            margin-top: 5px;
-            font-size: 0.9em;
+            padding: 5px 10px;
         }
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="controls">
         <div class="input-section">
             <div class="instructions">
-                Enter addresses in the following format:
+                กรุณาใส่ที่อยู่ในรูปแบบต่อไปนี้:
                 <br><br>
-                --- Start each address with three dashes ---<br>
-                [Your complete postal address here]<br>
-                COLOR: [color name]<br>
-                --- End each address with three dashes ---
+                --- เริ่มต้นที่อยู่ด้วยขีด 3 ขีด ---<br>
+                [ที่อยู่]<br>
+                COLOR: [ชื่อสี]<br>
+                --- จบที่อยู่ด้วยขีด 3 ขีด ---
                 <br><br>
-                Available colors: red, blue, green, purple, orange, yellow, pink, black
-            </div>
-            <textarea id="locationInput" placeholder="Enter addresses following the format shown above...">---
-123 Main Street
-Apartment 4B
-New York, NY 10001
-United States
+                สีที่ใช้ได้: red, blue, green, purple, orange, yellow, pink, black
+                <div class="example">
+---
+99/99 ถนนสุขุมวิท
+แขวงคลองเตย เขตคลองเตย
+กรุงเทพมหานคร 10110
+ประเทศไทย
 COLOR: red
----</textarea>
+---</div>
+            </div>
+            <textarea id="locationInput" placeholder="กรุณาใส่ที่อยู่ตามรูปแบบด้านบน..."></textarea>
             <div class="button-group">
-                <button onclick="previewAddresses()" class="primary">Preview</button>
-                <button onclick="addMarkers()" class="primary" id="addBtn" disabled>Add to Map</button>
-                <button onclick="clearMarkers()" class="secondary">Clear Map</button>
-                <button onclick="saveMarkers()" class="secondary">Save</button>
-                <button onclick="loadMarkers()" class="secondary">Load</button>
+                <button onclick="addMarkers()">เพิ่มหมุด</button>
+                <button onclick="clearMarkers()">ลบทั้งหมด</button>
+                <button onclick="saveMarkers()">บันทึก</button>
+                <button onclick="loadMarkers()">โหลด</button>
             </div>
         </div>
-        <div class="preview-section" id="preview">
-            <h3>Address Preview</h3>
-            <div id="previewContent">
-                Preview your addresses here before adding them to the map.
-            </div>
-        </div>
+        <div id="map"></div>
     </div>
-    <div id="map"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
     <script>
-        // Initialize the map
-        const map = L.map('map').setView([0, 0], 2);
+        // Initialize the map centered on Thailand
+        const map = L.map('map').setView([13.7563, 100.5018], 6);
         
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
@@ -133,7 +93,6 @@ COLOR: red
         }).addTo(map);
 
         let markers = [];
-        let previewData = [];
         const validColors = ['red', 'blue', 'green', 'purple', 'orange', 'yellow', 'pink', 'black'];
 
         // Create custom colored icon
@@ -149,6 +108,38 @@ COLOR: red
             });
         }
 
+        // Geocode address using Nominatim with Thailand region bias
+        async function geocodeAddress(address) {
+            // Add Thailand to the address if not present
+            if (!address.toLowerCase().includes('thailand') && 
+                !address.toLowerCase().includes('ประเทศไทย')) {
+                address += ', ประเทศไทย';
+            }
+
+            const params = new URLSearchParams({
+                format: 'json',
+                q: address,
+                countrycodes: 'th', // Limit to Thailand
+                addressdetails: 1,
+                'accept-language': 'th' // Request Thai language results
+            });
+
+            const response = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {
+                headers: {
+                    'Accept-Language': 'th'
+                }
+            });
+            const data = await response.json();
+            
+            if (data.length === 0) throw new Error('ไม่พบที่อยู่');
+            
+            return {
+                lat: parseFloat(data[0].lat),
+                lng: parseFloat(data[0].lon),
+                displayName: data[0].display_name
+            };
+        }
+
         // Parse input text into array of {address, color} objects
         function parseInput(text) {
             const addresses = [];
@@ -159,12 +150,12 @@ COLOR: red
                 const colorLine = lines.find(line => line.toLowerCase().startsWith('color:'));
                 
                 if (!colorLine) {
-                    throw new Error(`Missing color specification in block:\n${block}`);
+                    throw new Error('กรุณาระบุสีสำหรับหมุด');
                 }
                 
                 const color = colorLine.split(':')[1].trim().toLowerCase();
                 if (!validColors.includes(color)) {
-                    throw new Error(`Invalid color "${color}". Valid colors are: ${validColors.join(', ')}`);
+                    throw new Error(`สีไม่ถูกต้อง "${color}". สีที่ใช้ได้: ${validColors.join(', ')}`);
                 }
                 
                 const addressLines = lines.filter(line => !line.toLowerCase().startsWith('color:'));
@@ -180,110 +171,55 @@ COLOR: red
             return addresses;
         }
 
-        // Preview addresses
-        async function previewAddresses() {
+        // Add markers from text input
+        async function addMarkers() {
             const input = document.getElementById('locationInput').value;
-            const previewContent = document.getElementById('previewContent');
             
             try {
-                previewData = parseInput(input);
-                let previewHtml = '';
+                const locations = parseInput(input);
+                const totalLocations = locations.length;
+                let processed = 0;
+                let errors = [];
                 
-                for (const loc of previewData) {
-                    previewHtml += `
-                        <div class="preview-card" style="border-left-color: ${loc.color}">
-                            <div>
-                                <span class="color-preview" style="background-color: ${loc.color}"></span>
-                                <strong>Pin Color: ${loc.color}</strong>
-                            </div>
-                            <pre>${loc.originalFormat}</pre>
-                        </div>
-                    `;
+                for (const loc of locations) {
+                    try {
+                        const geoData = await geocodeAddress(loc.address);
+                        
+                        const marker = L.marker([geoData.lat, geoData.lng], {
+                            icon: createColoredIcon(loc.color)
+                        })
+                            .bindPopup(`<b>ที่อยู่:</b><br>${loc.originalFormat.replace(/\n/g, '<br>')}`)
+                            .addTo(map);
+
+                        markers.push({
+                            marker: marker,
+                            data: {
+                                address: loc.originalFormat,
+                                lat: geoData.lat,
+                                lng: geoData.lng,
+                                color: loc.color
+                            }
+                        });
+                        
+                        processed++;
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                    } catch (error) {
+                        errors.push(`ไม่พบที่อยู่:\n${loc.originalFormat}`);
+                    }
                 }
-                
-                previewContent.innerHTML = previewHtml;
-                document.getElementById('addBtn').disabled = false;
-                
+
+                if (markers.length > 0) {
+                    const group = new L.featureGroup(markers.map(m => m.marker));
+                    map.fitBounds(group.getBounds().pad(0.1));
+                }
+
+                if (errors.length > 0) {
+                    alert(`เพิ่มหมุดสำเร็จ ${processed} จาก ${totalLocations} ที่อยู่\n\nข้อผิดพลาด:\n${errors.join('\n\n')}`);
+                } else {
+                    alert(`เพิ่มหมุดสำเร็จทั้งหมด ${processed} ที่อยู่!`);
+                }
             } catch (error) {
-                previewContent.innerHTML = `
-                    <div class="error">
-                        Error parsing addresses:<br>
-                        ${error.message}
-                    </div>
-                `;
-                document.getElementById('addBtn').disabled = true;
-            }
-        }
-
-        // Geocode address using Nominatim
-        async function geocodeAddress(address) {
-            const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`);
-            const data = await response.json();
-            if (data.length === 0) throw new Error('Address not found');
-            return {
-                lat: parseFloat(data[0].lat),
-                lng: parseFloat(data[0].lon),
-                displayName: data[0].display_name
-            };
-        }
-
-        // Add markers from preview data
-        async function addMarkers() {
-            if (previewData.length === 0) {
-                alert('Please preview addresses first');
-                return;
-            }
-            
-            const totalLocations = previewData.length;
-            let processed = 0;
-            let errors = [];
-            
-            for (const loc of previewData) {
-                try {
-                    const geoData = await geocodeAddress(loc.address);
-                    
-                    const marker = L.marker([geoData.lat, geoData.lng], {
-                        icon: createColoredIcon(loc.color)
-                    })
-                        .bindPopup(`<b>Address:</b><br>${loc.originalFormat.replace(/\n/g, '<br>')}`)
-                        .addTo(map);
-
-                    markers.push({
-                        marker: marker,
-                        data: {
-                            address: loc.originalFormat,
-                            lat: geoData.lat,
-                            lng: geoData.lng,
-                            color: loc.color
-                        }
-                    });
-                    
-                    processed++;
-                    
-                    // Update preview card with success status
-                    const previewCards = document.querySelectorAll('.preview-card');
-                    previewCards[processed - 1].style.backgroundColor = '#e8f5e9';
-                    
-                    // Add delay to avoid hitting API rate limits
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                } catch (error) {
-                    errors.push(`Could not find address:\n${loc.originalFormat}`);
-                    // Update preview card with error status
-                    const previewCards = document.querySelectorAll('.preview-card');
-                    previewCards[processed].style.backgroundColor = '#ffebee';
-                }
-            }
-
-            // Fit map to show all markers
-            if (markers.length > 0) {
-                const group = new L.featureGroup(markers.map(m => m.marker));
-                map.fitBounds(group.getBounds().pad(0.1));
-            }
-
-            if (errors.length > 0) {
-                alert(`Added ${processed} out of ${totalLocations} locations.\n\nErrors:\n${errors.join('\n\n')}`);
-            } else {
-                alert(`Successfully added all ${processed} locations!`);
+                alert(error.message);
             }
         }
 
@@ -297,7 +233,7 @@ COLOR: red
         function saveMarkers() {
             const markerData = markers.map(m => m.data);
             localStorage.setItem('mapMarkers', JSON.stringify(markerData));
-            alert('Markers saved!');
+            alert('บันทึกหมุดเรียบร้อย!');
         }
 
         // Load markers from localStorage
@@ -309,7 +245,7 @@ COLOR: red
                     const marker = L.marker([data.lat, data.lng], {
                         icon: createColoredIcon(data.color)
                     })
-                        .bindPopup(`<b>Address:</b><br>${data.address.replace(/\n/g, '<br>')}`)
+                        .bindPopup(`<b>ที่อยู่:</b><br>${data.address.replace(/\n/g, '<br>')}`)
                         .addTo(map);
                     
                     markers.push({
@@ -322,9 +258,9 @@ COLOR: red
                     const group = new L.featureGroup(markers.map(m => m.marker));
                     map.fitBounds(group.getBounds().pad(0.1));
                 }
-                alert('Markers loaded!');
+                alert('โหลดหมุดเรียบร้อย!');
             } else {
-                alert('No saved markers found');
+                alert('ไม่พบหมุดที่บันทึกไว้');
             }
         }
     </script>
